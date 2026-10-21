@@ -1,0 +1,28 @@
+{
+  "name": "wallet-ledger",
+  "version": "1.0.0",
+  "description": "Payments-grade wallet ledger: double-entry bookkeeping, row locks, idempotency keys, nightly reconciliation, fraud rules and LLM statement Q&A on PostgreSQL",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "worker": "node src/worker.js",
+    "migrate": "node scripts/migrate.js",
+    "seed": "node scripts/seed.js",
+    "test": "node --test --test-concurrency=1 \"tests/**/*.test.js\"",
+    "demo": "node scripts/demo.js",
+    "lab:isolation": "node scripts/isolation-lab.js",
+    "lab:break-it": "node scripts/break-it.js",
+    "perf:explain": "node scripts/explain-analyze.js",
+    "perf:rules": "node scripts/bench-rules.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "express": "^5.3.0",
+    "node-cron": "^3.0.3",
+    "pg": "^8.23.1"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  }
+}

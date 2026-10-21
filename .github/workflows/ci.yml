@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: Tests (stampede, idempotency, reconciliation, prompt injection, ...)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: wallet
+          POSTGRES_PASSWORD: wallet
+          POSTGRES_DB: wallet_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wallet"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      DATABASE_URL: postgres://wallet:wallet@localhost:5432/wallet_test
+      LLM_PROVIDER: mock
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  compose:
+    name: docker compose up (one command)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start Postgres, API and worker
+        run: docker compose up -d --build --wait
+      - name: Health check
+        run: curl -fsS http://localhost:3000/health
+      - name: Scripted demo against the running stack
+        run: node scripts/demo.js
+      - name: Test suite inside compose
+        run: docker compose run --rm tests
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs

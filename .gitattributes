@@ -1,0 +1,2 @@
+# Keep LF line endings so shell commands inside Docker work when cloned on Windows.
+* text=auto eol=lf

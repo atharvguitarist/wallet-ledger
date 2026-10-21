@@ -1,0 +1,75 @@
+# docker compose up          -> Postgres + API (http://localhost:3000) + background worker
+# docker compose run --rm tests   -> the whole test suite against the wallet_test database
+name: wallet-ledger
+
+x-app-env: &app-env
+  DATABASE_URL: postgres://wallet:wallet@db:5432/wallet
+  ADMIN_TOKEN: ${ADMIN_TOKEN:-dev-admin-token}
+  WITHDRAWAL_FEE_PAISE: ${WITHDRAWAL_FEE_PAISE:-200}
+  LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+  LLM_MODEL: ${LLM_MODEL:-}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: wallet
+      POSTGRES_PASSWORD: wallet
+      POSTGRES_DB: wallet
+      TZ: UTC
+    ports:
+      - "5433:5432"   # host port 5433 so it never clashes with a Postgres already on your machine
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wallet -d wallet"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  api:
+    build: .
+    environment:
+      <<: *app-env
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: ["sh", "-c", "node scripts/migrate.js && node src/worker.js"]
+    environment:
+      <<: *app-env
+      RECON_CRON: ${RECON_CRON:-30 2 * * *}
+      RUN_JOBS_ON_START: ${RUN_JOBS_ON_START:-true}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  tests:
+    build: .
+    profiles: ["test"]          # not started by a plain "docker compose up"
+    command: ["sh", "-c", "npm test"]
+    environment:
+      DATABASE_URL: postgres://wallet:wallet@db:5432/wallet_test
+      LLM_PROVIDER: mock
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
